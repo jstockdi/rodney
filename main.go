@@ -105,13 +105,13 @@ func printUsage() {
 
 func fatal(format string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, "error: "+format+"\n", args...)
-	os.Exit(1)
+	os.Exit(2)
 }
 
 func main() {
 	if len(os.Args) < 2 {
 		printUsage()
-		os.Exit(1)
+		os.Exit(2)
 	}
 
 	cmd := os.Args[1]
@@ -211,7 +211,7 @@ func main() {
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", cmd)
 		printUsage()
-		os.Exit(1)
+		os.Exit(2)
 	}
 }
 

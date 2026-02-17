@@ -181,6 +181,97 @@ done
 rodney stop
 ```
 
+## Exit codes
+
+Rodney uses distinct exit codes to separate check failures from errors:
+
+| Exit code | Meaning |
+|---|---|
+| `0` | Success |
+| `1` | Check failed — the command ran successfully but the condition was not met |
+| `2` | Error — something went wrong (bad arguments, no browser session, timeout, etc.) |
+
+This makes it easy to distinguish between "the assertion is false" and "the command couldn't run" in scripts and CI pipelines.
+
+## Using Rodney for checks
+
+Several commands return **exit code 1** when a condition is not met, making them useful as assertions in shell scripts and CI pipelines. All of these print their result to stdout and exit cleanly — no error message is written to stderr.
+
+### `exists` — check if an element exists in the DOM
+
+```bash
+rodney exists "h1"
+# Prints "true", exits 0
+
+rodney exists ".nonexistent"
+# Prints "false", exits 1
+```
+
+### `visible` — check if an element is visible
+
+```bash
+rodney visible "#modal"
+# Prints "true" and exits 0 if the element exists and is visible
+
+rodney visible "#hidden-div"
+# Prints "false" and exits 1 if the element is hidden or doesn't exist
+```
+
+### `ax-find` — check for accessibility nodes
+
+```bash
+rodney ax-find --role button --name "Submit"
+# Prints the matching node(s), exits 0
+
+rodney ax-find --role banner --name "Nonexistent"
+# Prints "No matching nodes" to stderr, exits 1
+```
+
+### Combining checks in a shell script
+
+You can chain these together in a single script to run multiple assertions. Because check failures use exit code 1 while real errors use exit code 2, you can use `set -e` to abort on errors while handling check failures explicitly:
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+FAIL=0
+
+check() {
+    if ! "$@"; then
+        echo "FAIL: $*"
+        FAIL=1
+    fi
+}
+
+rodney start
+rodney open "https://example.com"
+rodney waitstable
+
+# Assert elements exist
+check rodney exists "h1"
+check rodney exists "nav"
+check rodney exists "footer"
+
+# Assert key elements are visible
+check rodney visible "h1"
+check rodney visible "#main-content"
+
+# Assert accessibility requirements
+check rodney ax-find --role navigation
+check rodney ax-find --role heading --name "Example Domain"
+
+rodney stop
+
+if [ "$FAIL" -ne 0 ]; then
+    echo "Some checks failed"
+    exit 1
+fi
+echo "All checks passed"
+```
+
+This pattern is useful in CI — run Rodney as a post-deploy check, an accessibility audit, or a smoke test against a staging environment. Because exit code 2 signals an actual error (e.g. Chrome didn't start), `set -e` will abort the script immediately if something is broken rather than reporting a misleading test failure.
+
 ## Configuration
 
 | Environment Variable | Default | Description |
@@ -255,9 +346,9 @@ The tool uses the [rod](https://github.com/go-rod/rod) Go library which communic
 | `page` | `<index>` | Switch tab |
 | `newpage` | `[url]` | Open new tab |
 | `closepage` | `[index]` | Close tab |
-| `exists` | `<selector>` | Check element exists (exit code) |
+| `exists` | `<selector>` | Check element exists (exit 1 if not) |
 | `count` | `<selector>` | Count matching elements |
-| `visible` | `<selector>` | Check element visible (exit code) |
+| `visible` | `<selector>` | Check element visible (exit 1 if not) |
 | `ax-tree` | `[--depth N] [--json]` | Dump accessibility tree |
 | `ax-find` | `[--name N] [--role R] [--json]` | Find accessible nodes |
 | `ax-node` | `<selector> [--json]` | Show element accessibility info |
