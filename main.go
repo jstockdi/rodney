@@ -715,10 +715,25 @@ func cmdPDF(args []string) {
 }
 
 func cmdJS(args []string) {
-	if len(args) < 1 {
-		fatal("usage: rodney js <expression>")
+	var expr string
+	if len(args) == 0 || (len(args) == 1 && args[0] == "-") {
+		if len(args) == 0 {
+			// Only read from stdin automatically if it's piped (not a terminal)
+			if stat, err := os.Stdin.Stat(); err != nil || (stat.Mode()&os.ModeCharDevice) != 0 {
+				fatal("usage: rodney js <expression>")
+			}
+		}
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			fatal("failed to read stdin: %v", err)
+		}
+		expr = strings.TrimSpace(string(data))
+		if expr == "" {
+			fatal("empty expression from stdin")
+		}
+	} else {
+		expr = strings.Join(args, " ")
 	}
-	expr := strings.Join(args, " ")
 	_, _, page := withPage()
 
 	// Wrap bare expressions in a function
