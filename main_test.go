@@ -1192,6 +1192,80 @@ func TestCmdJS_Stdin_TrimsWhitespace(t *testing.T) {
 	}
 }
 
+// ======================
+// cmdAssert stdin tests
+// ======================
+
+// TestCmdAssert_Stdin_NoArgs verifies that piping a JS expression to `rodney assert`
+// with no other args reads the expression from stdin.
+func TestCmdAssert_Stdin_NoArgs(t *testing.T) {
+	pipeStdin(t, "document.title\n")
+	got := resolveAssertArgs([]string{})
+	if len(got) == 0 || got[0] != "document.title" {
+		t.Errorf("expected args[0] == 'document.title', got %v", got)
+	}
+}
+
+// TestCmdAssert_Stdin_DashArg verifies that `rodney assert -` reads the expression
+// from stdin explicitly, matching the `-` convention used by `rodney js` and `rodney file`.
+func TestCmdAssert_Stdin_DashArg(t *testing.T) {
+	pipeStdin(t, "document.title\n")
+	got := resolveAssertArgs([]string{"-"})
+	if len(got) == 0 || got[0] != "document.title" {
+		t.Errorf("expected args[0] == 'document.title', got %v", got)
+	}
+}
+
+// TestCmdAssert_Stdin_WithExpected verifies that the expression comes from stdin
+// while the expected value still comes from command-line args.
+// Equivalent to: echo "document.title" | rodney assert - "Test Page"
+func TestCmdAssert_Stdin_WithExpected(t *testing.T) {
+	pipeStdin(t, "document.title\n")
+	got := resolveAssertArgs([]string{"-", "Test Page"})
+	if len(got) != 2 || got[0] != "document.title" || got[1] != "Test Page" {
+		t.Errorf("expected [document.title Test Page], got %v", got)
+	}
+}
+
+// TestCmdAssert_Stdin_WithMessage verifies that the expression comes from stdin
+// while the -m flag still comes from command-line args.
+// Equivalent to: echo "document.title" | rodney assert - -m "page title"
+func TestCmdAssert_Stdin_WithMessage(t *testing.T) {
+	pipeStdin(t, "document.title\n")
+	got := resolveAssertArgs([]string{"-", "-m", "page title"})
+	if len(got) != 3 || got[0] != "document.title" || got[1] != "-m" || got[2] != "page title" {
+		t.Errorf("expected [document.title -m page title], got %v", got)
+	}
+}
+
+// TestCmdAssert_Stdin_FlagsOnly verifies that when only flags are given (no positional)
+// and stdin is piped, the expression is prepended from stdin.
+func TestCmdAssert_Stdin_FlagsOnly(t *testing.T) {
+	pipeStdin(t, "document.title\n")
+	got := resolveAssertArgs([]string{"-m", "check"})
+	if len(got) != 3 || got[0] != "document.title" || got[1] != "-m" || got[2] != "check" {
+		t.Errorf("expected [document.title -m check], got %v", got)
+	}
+}
+
+// TestCmdAssert_Stdin_Passthrough verifies that normal (non-stdin) args are unchanged.
+func TestCmdAssert_Stdin_Passthrough(t *testing.T) {
+	got := resolveAssertArgs([]string{"document.title", "Test Page"})
+	if len(got) != 2 || got[0] != "document.title" || got[1] != "Test Page" {
+		t.Errorf("expected [document.title Test Page], got %v", got)
+	}
+}
+
+// TestCmdAssert_Stdin_TrimsWhitespace verifies leading/trailing whitespace is stripped
+// from the stdin expression (consistent with cmdJS behavior).
+func TestCmdAssert_Stdin_TrimsWhitespace(t *testing.T) {
+	pipeStdin(t, "  1 + 2  \n")
+	got := resolveAssertArgs([]string{"-"})
+	if len(got) == 0 || got[0] != "1 + 2" {
+		t.Errorf("expected args[0] == '1 + 2', got %v", got)
+	}
+}
+
 func TestInsecureFlag_WithSelfSignedCert(t *testing.T) {
 	// Create HTTPS server with self-signed certificate
 	mux := http.NewServeMux()
