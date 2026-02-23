@@ -320,12 +320,15 @@ func withPage() (*State, *rod.Browser, *rod.Page) {
 
 func cmdStart(args []string) {
 	ignoreCertErrors := false
+	fakeMedia := false
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--insecure", "-k":
 			ignoreCertErrors = true
+		case "--fake-media":
+			fakeMedia = true
 		default:
-			fatal("unknown flag: %s\nusage: rodney start [--insecure]", args[i])
+			fatal("unknown flag: %s\nusage: rodney start [--insecure] [--fake-media]", args[i])
 		}
 	}
 
@@ -403,6 +406,11 @@ func cmdStart(args []string) {
 
 	if ignoreCertErrors {
 		l.Set("ignore-certificate-errors")
+	}
+
+	if fakeMedia {
+		l.Set("use-fake-device-for-media-stream")
+		l.Set("use-fake-ui-for-media-stream")
 	}
 
 	debugURL := l.MustLaunch()
