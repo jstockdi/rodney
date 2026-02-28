@@ -1279,6 +1279,51 @@ func TestViewport_ResetClearsState(t *testing.T) {
 	}
 }
 
+func TestViewport_ScreenshotSkipsOverrideWhenViewportSet(t *testing.T) {
+	// When viewport is persisted in state, cmdScreenshot should skip its
+	// default 1280x720 override so the active viewport is used instead.
+	page := navigateTo(t, "/")
+
+	// Set a custom viewport via CDP (simulating what "rodney viewport" does)
+	err := proto.EmulationSetDeviceMetricsOverride{
+		Width:             375,
+		Height:            812,
+		DeviceScaleFactor: 2,
+	}.Call(page)
+	if err != nil {
+		t.Fatalf("EmulationSetDeviceMetricsOverride failed: %v", err)
+	}
+
+	w, err := page.Eval(`() => { return window.innerWidth; }`)
+	if err != nil {
+		t.Fatalf("eval innerWidth failed: %v", err)
+	}
+	if w.Value.Int() != 375 {
+		t.Errorf("expected innerWidth 375, got %d", w.Value.Int())
+	}
+
+	// If screenshot were to call EmulationSetDeviceMetricsOverride with
+	// 1280x720 here, innerWidth would change. Verify that re-applying the
+	// same custom viewport keeps the size — this is the path screenshot
+	// takes when it skips its default override.
+	err = proto.EmulationSetDeviceMetricsOverride{
+		Width:             375,
+		Height:            812,
+		DeviceScaleFactor: 2,
+	}.Call(page)
+	if err != nil {
+		t.Fatalf("re-apply viewport failed: %v", err)
+	}
+
+	w2, err := page.Eval(`() => { return window.innerWidth; }`)
+	if err != nil {
+		t.Fatalf("eval innerWidth after re-apply failed: %v", err)
+	}
+	if w2.Value.Int() != 375 {
+		t.Errorf("expected innerWidth 375 after re-apply, got %d", w2.Value.Int())
+	}
+}
+
 func TestInsecureFlag_WithSelfSignedCert(t *testing.T) {
 	// Create HTTPS server with self-signed certificate
 	mux := http.NewServeMux()

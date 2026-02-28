@@ -1272,9 +1272,10 @@ func cmdViewport(args []string) {
 
 func cmdScreenshot(args []string) {
 	var file string
-	width := 1280
+	width := 0
 	height := 0
 	fullPage := true
+	sizeExplicit := false
 
 	// Parse flags and positional args
 	var positional []string
@@ -1290,6 +1291,7 @@ func cmdScreenshot(args []string) {
 				fatal("invalid width: %v", err)
 			}
 			width = v
+			sizeExplicit = true
 		case "-h", "--height":
 			i++
 			if i >= len(args) {
@@ -1301,6 +1303,7 @@ func cmdScreenshot(args []string) {
 			}
 			height = v
 			fullPage = false
+			sizeExplicit = true
 		default:
 			positional = append(positional, args[i])
 		}
@@ -1312,20 +1315,26 @@ func cmdScreenshot(args []string) {
 		file = nextAvailableFile("screenshot", ".png")
 	}
 
-	_, _, page := withPage()
+	s, _, page := withPage()
 
-	// Set viewport size for screenshot
-	viewportHeight := height
-	if viewportHeight == 0 {
-		viewportHeight = 720
-	}
-	err := proto.EmulationSetDeviceMetricsOverride{
-		Width:             width,
-		Height:            viewportHeight,
-		DeviceScaleFactor: 1,
-	}.Call(page)
-	if err != nil {
-		fatal("failed to set viewport: %v", err)
+	// Only override viewport if -w/-h were explicitly passed, or if no
+	// viewport has been set via "rodney viewport"
+	if sizeExplicit || s.ViewportWidth == 0 {
+		if width == 0 {
+			width = 1280
+		}
+		viewportHeight := height
+		if viewportHeight == 0 {
+			viewportHeight = 720
+		}
+		err := proto.EmulationSetDeviceMetricsOverride{
+			Width:             width,
+			Height:            viewportHeight,
+			DeviceScaleFactor: 1,
+		}.Call(page)
+		if err != nil {
+			fatal("failed to set viewport: %v", err)
+		}
 	}
 
 	data, err := page.Screenshot(fullPage, nil)

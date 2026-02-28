@@ -117,9 +117,11 @@ rodney sleep 2.5            # Sleep for N seconds
 ```bash
 rodney screenshot                         # Save as screenshot.png
 rodney screenshot page.png                # Save to specific file
-rodney screenshot -w 1280 -h 720 out.png  # Set viewport width/height
+rodney screenshot -w 1280 -h 720 out.png  # Override viewport width/height
 rodney screenshot-el ".chart" chart.png   # Screenshot specific element
 ```
+
+When a viewport has been set via `rodney viewport`, screenshots use that viewport by default. Pass `-w`/`-h` to override.
 
 ### Viewport / mobile emulation
 
