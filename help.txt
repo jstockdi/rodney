@@ -1,7 +1,7 @@
 rodney - Chrome automation from the command line
 
 Browser lifecycle:
-  rodney start [--show] [--insecure | -k]  Launch Chrome (headless by default, --show for visible)
+  rodney start [--show] [--insecure | -k] [--logs]  Launch Chrome (headless by default, --show for visible)
   rodney connect <host:port>      Connect to existing Chrome on remote debug port
   rodney stop                     Shut down Chrome
   rodney status                   Show browser status
@@ -20,6 +20,9 @@ Page info:
   rodney text <selector>          Print text content of element
   rodney attr <selector> <name>   Print attribute value
   rodney pdf [file]               Save page as PDF
+
+Console:
+  rodney logs [-f] [-n N] [--json]  Print console logs (default: snapshot, -f to stream)
 
 Interaction:
   rodney js <expression>          Evaluate JavaScript expression
