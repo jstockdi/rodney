@@ -332,6 +332,7 @@ type startFlags struct {
 	headless         bool
 	ignoreCertErrors bool
 	enableLogs       bool
+	fakeMedia        bool
 }
 
 // parseStartFlags parses the arguments to "rodney start".
@@ -345,8 +346,10 @@ func parseStartFlags(args []string) (startFlags, error) {
 			f.ignoreCertErrors = true
 		case "--logs":
 			f.enableLogs = true
+		case "--fake-media":
+			f.fakeMedia = true
 		default:
-			return f, fmt.Errorf("unknown flag: %s\nusage: rodney start [--show] [--insecure | -k] [--logs]", arg)
+			return f, fmt.Errorf("unknown flag: %s\nusage: rodney start [--show] [--insecure | -k] [--logs] [--fake-media]", arg)
 		}
 	}
 	return f, nil
@@ -359,6 +362,7 @@ func cmdStart(args []string) {
 	}
 	ignoreCertErrors := flags.ignoreCertErrors
 	enableLogs := flags.enableLogs
+	fakeMedia := flags.fakeMedia
 
 	// Check if already running
 	if s, err := loadState(); err == nil {
@@ -428,6 +432,11 @@ func cmdStart(args []string) {
 
 	if ignoreCertErrors {
 		l.Set("ignore-certificate-errors")
+	}
+
+	if fakeMedia {
+		l.Set("use-fake-device-for-media-stream")
+		l.Set("use-fake-ui-for-media-stream")
 	}
 
 	debugURL := l.MustLaunch()

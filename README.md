@@ -70,6 +70,7 @@ Each CLI invocation is a short-lived process. Chrome runs independently and tabs
 rodney start              # Launch headless Chrome
 rodney start --show       # Launch with visible browser window
 rodney start --insecure   # Launch with TLS errors ignored (-k shorthand)
+rodney start --fake-media # Launch with fake media devices (avoids getUserMedia crashes)
 rodney connect host:9222  # Connect to existing Chrome on remote debug port
 rodney status             # Show browser info and active page
 rodney stop               # Shut down Chrome
@@ -452,7 +453,7 @@ The tool uses the [rod](https://github.com/go-rod/rod) Go library which communic
 
 | Command | Arguments | Description |
 |---|---|---|
-| `start` | `[--show] [--insecure\|-k] [--logs]` | Launch Chrome (headless by default, `--show` for visible) |
+| `start` | `[--show] [--insecure\|-k] [--logs] [--fake-media]` | Launch Chrome (headless by default, `--show` for visible) |
 | `connect` | `<host:port>` | Connect to existing Chrome on remote debug port |
 | `stop` | | Shut down Chrome |
 | `status` | | Show browser status |
