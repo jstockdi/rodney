@@ -56,6 +56,9 @@ Element checks:
   rodney visible <selector>       Check if element is visible (exit 1 if not)
   rodney assert <expr> [expected] [-m msg]  Assert JS expression (truthy or equality)
 
+Discovery:
+  rodney discover [--json] [--attr NAME]    List data-testid elements with suggested commands
+
 Accessibility:
   rodney ax-tree [--depth N] [--json]       Dump accessibility tree
   rodney ax-find [--name N] [--role R] [--json]  Find accessible nodes

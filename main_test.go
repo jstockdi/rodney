@@ -51,6 +51,7 @@ func TestMain(m *testing.M) {
 	mux.HandleFunc("/download", handleDownload)
 	mux.HandleFunc("/testfile.txt", handleTestFile)
 	mux.HandleFunc("/empty", handleEmpty)
+	mux.HandleFunc("/discover", handleDiscover)
 	server := httptest.NewServer(mux)
 
 	env = &testEnv{browser: browser, server: server}
@@ -1147,4 +1148,274 @@ func TestInsecureFlag_WithSelfSignedCert(t *testing.T) {
 			t.Errorf("expected page to load successfully with title 'Secure Test', got %q", title)
 		}
 	})
+}
+
+// =====================
+// discover command tests
+// =====================
+
+func handleDiscover(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(`<!DOCTYPE html>
+<html lang="en">
+<head><title>Discover Page</title></head>
+<body>
+  <h1 data-testid="heading">Dashboard</h1>
+  <p data-testid="status">All systems operational</p>
+  <input data-testid="search" type="text" placeholder="Search...">
+  <textarea data-testid="notes" placeholder="Notes"></textarea>
+  <button data-testid="submit-btn">Submit</button>
+  <a data-testid="help-link" href="/help">Help</a>
+  <select data-testid="filter">
+    <option value="all">All</option>
+    <option value="active">Active</option>
+  </select>
+  <div data-testid="hidden-el" style="display:none">Hidden content</div>
+  <table data-testid="results-table">
+    <thead><tr><th>Name</th><th>Status</th></tr></thead>
+    <tbody><tr><td>Item 1</td><td>OK</td></tr><tr><td>Item 2</td><td>Fail</td></tr></tbody>
+  </table>
+  <span data-custom="custom-val">Custom attr element</span>
+</body>
+</html>`))
+}
+
+func TestDiscover_FindsTestIDElements(t *testing.T) {
+	page := navigateTo(t, "/discover")
+	entries, err := queryDiscoverEntries(page, "data-testid")
+	if err != nil {
+		t.Fatalf("queryDiscoverEntries failed: %v", err)
+	}
+	if len(entries) < 8 {
+		t.Fatalf("expected at least 8 entries, got %d", len(entries))
+	}
+}
+
+func TestDiscover_ButtonAction(t *testing.T) {
+	page := navigateTo(t, "/discover")
+	entries, err := queryDiscoverEntries(page, "data-testid")
+	if err != nil {
+		t.Fatalf("queryDiscoverEntries failed: %v", err)
+	}
+	found := false
+	for _, e := range entries {
+		if e.ID == "submit-btn" {
+			found = true
+			if e.Action != "click" {
+				t.Errorf("button action should be 'click', got %q", e.Action)
+			}
+			if e.Tag != "button" {
+				t.Errorf("button tag should be 'button', got %q", e.Tag)
+			}
+			if e.Text != "Submit" {
+				t.Errorf("button text should be 'Submit', got %q", e.Text)
+			}
+		}
+	}
+	if !found {
+		t.Error("submit-btn not found in discover entries")
+	}
+}
+
+func TestDiscover_InputAction(t *testing.T) {
+	page := navigateTo(t, "/discover")
+	entries, err := queryDiscoverEntries(page, "data-testid")
+	if err != nil {
+		t.Fatalf("queryDiscoverEntries failed: %v", err)
+	}
+	for _, e := range entries {
+		if e.ID == "search" {
+			if e.Action != "input" {
+				t.Errorf("input action should be 'input', got %q", e.Action)
+			}
+			if e.Text != "Search..." {
+				t.Errorf("input text should be placeholder 'Search...', got %q", e.Text)
+			}
+			return
+		}
+	}
+	t.Error("search input not found in discover entries")
+}
+
+func TestDiscover_TextareaAction(t *testing.T) {
+	page := navigateTo(t, "/discover")
+	entries, err := queryDiscoverEntries(page, "data-testid")
+	if err != nil {
+		t.Fatalf("queryDiscoverEntries failed: %v", err)
+	}
+	for _, e := range entries {
+		if e.ID == "notes" {
+			if e.Action != "input" {
+				t.Errorf("textarea action should be 'input', got %q", e.Action)
+			}
+			return
+		}
+	}
+	t.Error("notes textarea not found in discover entries")
+}
+
+func TestDiscover_LinkAction(t *testing.T) {
+	page := navigateTo(t, "/discover")
+	entries, err := queryDiscoverEntries(page, "data-testid")
+	if err != nil {
+		t.Fatalf("queryDiscoverEntries failed: %v", err)
+	}
+	for _, e := range entries {
+		if e.ID == "help-link" {
+			if e.Action != "click" {
+				t.Errorf("link action should be 'click', got %q", e.Action)
+			}
+			if !strings.Contains(e.Text, "/help") {
+				t.Errorf("link text should contain href '/help', got %q", e.Text)
+			}
+			return
+		}
+	}
+	t.Error("help-link not found in discover entries")
+}
+
+func TestDiscover_SelectAction(t *testing.T) {
+	page := navigateTo(t, "/discover")
+	entries, err := queryDiscoverEntries(page, "data-testid")
+	if err != nil {
+		t.Fatalf("queryDiscoverEntries failed: %v", err)
+	}
+	for _, e := range entries {
+		if e.ID == "filter" {
+			if e.Action != "select" {
+				t.Errorf("select action should be 'select', got %q", e.Action)
+			}
+			if !strings.Contains(e.Text, "All") || !strings.Contains(e.Text, "Active") {
+				t.Errorf("select text should list options, got %q", e.Text)
+			}
+			return
+		}
+	}
+	t.Error("filter select not found in discover entries")
+}
+
+func TestDiscover_TableAction(t *testing.T) {
+	page := navigateTo(t, "/discover")
+	entries, err := queryDiscoverEntries(page, "data-testid")
+	if err != nil {
+		t.Fatalf("queryDiscoverEntries failed: %v", err)
+	}
+	for _, e := range entries {
+		if e.ID == "results-table" {
+			if e.Action != "text" {
+				t.Errorf("table action should be 'text', got %q", e.Action)
+			}
+			if !strings.Contains(e.Text, "Name") || !strings.Contains(e.Text, "Status") {
+				t.Errorf("table text should contain headers, got %q", e.Text)
+			}
+			if !strings.Contains(e.Text, "2 rows") {
+				t.Errorf("table text should contain row count, got %q", e.Text)
+			}
+			return
+		}
+	}
+	t.Error("results-table not found in discover entries")
+}
+
+func TestDiscover_HiddenElement(t *testing.T) {
+	page := navigateTo(t, "/discover")
+	entries, err := queryDiscoverEntries(page, "data-testid")
+	if err != nil {
+		t.Fatalf("queryDiscoverEntries failed: %v", err)
+	}
+	for _, e := range entries {
+		if e.ID == "hidden-el" {
+			if e.Visible {
+				t.Error("hidden element should have Visible=false")
+			}
+			return
+		}
+	}
+	t.Error("hidden-el not found in discover entries")
+}
+
+func TestDiscover_CustomAttr(t *testing.T) {
+	page := navigateTo(t, "/discover")
+	entries, err := queryDiscoverEntries(page, "data-custom")
+	if err != nil {
+		t.Fatalf("queryDiscoverEntries failed: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry with data-custom, got %d", len(entries))
+	}
+	if entries[0].ID != "custom-val" {
+		t.Errorf("expected id 'custom-val', got %q", entries[0].ID)
+	}
+}
+
+func TestDiscover_EmptyPage(t *testing.T) {
+	page := navigateTo(t, "/empty")
+	entries, err := queryDiscoverEntries(page, "data-testid")
+	if err != nil {
+		t.Fatalf("queryDiscoverEntries failed: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected 0 entries on empty page, got %d", len(entries))
+	}
+}
+
+func TestDiscover_FormatTextGrouping(t *testing.T) {
+	page := navigateTo(t, "/discover")
+	entries, err := queryDiscoverEntries(page, "data-testid")
+	if err != nil {
+		t.Fatalf("queryDiscoverEntries failed: %v", err)
+	}
+	out := formatDiscoverText(entries, "data-testid", "http://example.com/discover")
+	if !strings.Contains(out, "Readable:") {
+		t.Error("output should contain 'Readable:' group")
+	}
+	if !strings.Contains(out, "Interactive:") {
+		t.Error("output should contain 'Interactive:' group")
+	}
+	if !strings.Contains(out, "Hidden:") {
+		t.Error("output should contain 'Hidden:' group")
+	}
+	if !strings.Contains(out, "Page: http://example.com/discover") {
+		t.Error("output should contain page URL")
+	}
+}
+
+func TestDiscover_FormatTextCommands(t *testing.T) {
+	page := navigateTo(t, "/discover")
+	entries, err := queryDiscoverEntries(page, "data-testid")
+	if err != nil {
+		t.Fatalf("queryDiscoverEntries failed: %v", err)
+	}
+	out := formatDiscoverText(entries, "data-testid", "")
+	if !strings.Contains(out, `rodney click '[data-testid="submit-btn"]'`) {
+		t.Errorf("output should suggest click command for button, got:\n%s", out)
+	}
+	if !strings.Contains(out, `rodney input '[data-testid="search"]'`) {
+		t.Errorf("output should suggest input command for text input, got:\n%s", out)
+	}
+	if !strings.Contains(out, `rodney select '[data-testid="filter"]'`) {
+		t.Errorf("output should suggest select command for dropdown, got:\n%s", out)
+	}
+	if !strings.Contains(out, `rodney text '[data-testid="heading"]'`) {
+		t.Errorf("output should suggest text command for heading, got:\n%s", out)
+	}
+}
+
+func TestDiscover_JSONOutput(t *testing.T) {
+	page := navigateTo(t, "/discover")
+	entries, err := queryDiscoverEntries(page, "data-testid")
+	if err != nil {
+		t.Fatalf("queryDiscoverEntries failed: %v", err)
+	}
+	out, jsonErr := json.MarshalIndent(entries, "", "  ")
+	if jsonErr != nil {
+		t.Fatalf("JSON marshal failed: %v", jsonErr)
+	}
+	var parsed []discoverEntry
+	if err := json.Unmarshal(out, &parsed); err != nil {
+		t.Fatalf("JSON round-trip failed: %v", err)
+	}
+	if len(parsed) != len(entries) {
+		t.Errorf("JSON round-trip: expected %d entries, got %d", len(entries), len(parsed))
+	}
 }

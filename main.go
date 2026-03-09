@@ -275,6 +275,8 @@ func main() {
 		cmdAXFind(args)
 	case "ax-node":
 		cmdAXNode(args)
+	case "discover":
+		cmdDiscover(args)
 	case "help", "-h", "--help":
 		printUsage()
 		os.Exit(0)
@@ -1604,6 +1606,171 @@ func cmdAXNode(args []string) {
 	} else {
 		fmt.Print(formatAXNodeDetail(node))
 	}
+}
+
+type discoverEntry struct {
+	ID      string `json:"id"`
+	Tag     string `json:"tag"`
+	Action  string `json:"action"`
+	Text    string `json:"text"`
+	Visible bool   `json:"visible"`
+}
+
+// queryDiscoverEntries finds all elements with the given attribute and returns structured entries.
+func queryDiscoverEntries(page *rod.Page, attrName string) ([]discoverEntry, error) {
+	js := fmt.Sprintf(`() => {
+		var results = [];
+		var els = document.querySelectorAll('[%s]');
+		for (var i = 0; i < els.length; i++) {
+			var el = els[i];
+			var id = el.getAttribute('%s');
+			var tag = el.tagName.toLowerCase();
+			var type = el.getAttribute('type') || '';
+			var text = '';
+			var visible = el.offsetParent !== null || el.style.display !== 'none';
+			var action = 'text';
+
+			if (tag === 'input' || tag === 'textarea') {
+				action = 'input';
+				text = el.placeholder || el.value || '';
+			} else if (tag === 'select') {
+				action = 'select';
+				var opts = [];
+				for (var j = 0; j < el.options.length; j++) opts.push(el.options[j].text);
+				text = opts.join(', ');
+			} else if (tag === 'button' || type === 'submit') {
+				action = 'click';
+				text = el.textContent.trim().substring(0, 60);
+			} else if (tag === 'a') {
+				action = 'click';
+				text = el.textContent.trim().substring(0, 40);
+				var href = el.getAttribute('href');
+				if (href) text = text + ' -> ' + href;
+			} else if (tag === 'table') {
+				action = 'text';
+				var headers = [];
+				el.querySelectorAll('th').forEach(function(th) { headers.push(th.textContent.trim()); });
+				var rows = el.querySelectorAll('tbody tr').length;
+				text = headers.join(', ') + ' (' + rows + ' rows)';
+			} else {
+				text = el.textContent.trim().substring(0, 60);
+			}
+
+			results.push({
+				id: id,
+				tag: tag,
+				action: action,
+				text: text,
+				visible: visible
+			});
+		}
+		return results;
+	}`, attrName, attrName)
+
+	result, err := page.Eval(js)
+	if err != nil {
+		return nil, fmt.Errorf("discover eval failed: %w", err)
+	}
+
+	raw := result.Value.JSON("", "")
+	var entries []discoverEntry
+	if jsonErr := json.Unmarshal([]byte(raw), &entries); jsonErr != nil {
+		return nil, fmt.Errorf("failed to parse discover results: %w", jsonErr)
+	}
+	return entries, nil
+}
+
+// formatDiscoverText formats discover entries as human-readable grouped output.
+func formatDiscoverText(entries []discoverEntry, attrName, pageURL string) string {
+	var buf strings.Builder
+	fmt.Fprintf(&buf, "Page: %s\n\n", pageURL)
+
+	type group struct {
+		label   string
+		entries []discoverEntry
+	}
+	groups := []group{
+		{"Readable", nil},
+		{"Interactive", nil},
+		{"Hidden", nil},
+	}
+	for _, e := range entries {
+		if !e.Visible {
+			groups[2].entries = append(groups[2].entries, e)
+		} else if e.Action == "text" {
+			groups[0].entries = append(groups[0].entries, e)
+		} else {
+			groups[1].entries = append(groups[1].entries, e)
+		}
+	}
+
+	sel := func(id string) string {
+		return fmt.Sprintf(`[%s="%s"]`, attrName, id)
+	}
+
+	for _, g := range groups {
+		if len(g.entries) == 0 {
+			continue
+		}
+		fmt.Fprintf(&buf, "%s:\n", g.label)
+		for _, e := range g.entries {
+			display := e.Text
+			if len(display) > 40 {
+				display = display[:37] + "..."
+			}
+			cmd := ""
+			switch e.Action {
+			case "text":
+				cmd = fmt.Sprintf("rodney text '%s'", sel(e.ID))
+			case "input":
+				cmd = fmt.Sprintf("rodney input '%s' \"<text>\"", sel(e.ID))
+			case "click":
+				cmd = fmt.Sprintf("rodney click '%s'", sel(e.ID))
+			case "select":
+				cmd = fmt.Sprintf("rodney select '%s' \"<value>\"", sel(e.ID))
+			}
+			fmt.Fprintf(&buf, "  %-22s %-42s %s\n", e.ID, display, cmd)
+		}
+		fmt.Fprintln(&buf)
+	}
+	return buf.String()
+}
+
+func cmdDiscover(args []string) {
+	jsonOutput := false
+	attrName := "data-testid"
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--json":
+			jsonOutput = true
+		case "--attr":
+			if i+1 >= len(args) {
+				fatal("--attr requires a value")
+			}
+			i++
+			attrName = args[i]
+		}
+	}
+
+	_, _, page := withPage()
+	info, _ := page.Info()
+
+	entries, err := queryDiscoverEntries(page, attrName)
+	if err != nil {
+		fatal("%v", err)
+	}
+
+	if jsonOutput {
+		out, _ := json.MarshalIndent(entries, "", "  ")
+		fmt.Println(string(out))
+		return
+	}
+
+	url := ""
+	if info != nil {
+		url = info.URL
+	}
+	fmt.Print(formatDiscoverText(entries, attrName, url))
 }
 
 // queryAXNodes uses Accessibility.queryAXTree to find nodes by name and/or role.
