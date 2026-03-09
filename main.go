@@ -328,19 +328,37 @@ func withPage() (*State, *rod.Browser, *rod.Page) {
 
 // --- Commands ---
 
-func cmdStart(args []string) {
-	ignoreCertErrors := false
-	enableLogs := false
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
+type startFlags struct {
+	headless         bool
+	ignoreCertErrors bool
+	enableLogs       bool
+}
+
+// parseStartFlags parses the arguments to "rodney start".
+func parseStartFlags(args []string) (startFlags, error) {
+	f := startFlags{headless: true}
+	for _, arg := range args {
+		switch arg {
+		case "--show":
+			f.headless = false
 		case "--insecure", "-k":
-			ignoreCertErrors = true
+			f.ignoreCertErrors = true
 		case "--logs":
-			enableLogs = true
+			f.enableLogs = true
 		default:
-			fatal("unknown flag: %s\nusage: rodney start [--insecure] [--logs]", args[i])
+			return f, fmt.Errorf("unknown flag: %s\nusage: rodney start [--show] [--insecure | -k] [--logs]", arg)
 		}
 	}
+	return f, nil
+}
+
+func cmdStart(args []string) {
+	flags, err := parseStartFlags(args)
+	if err != nil {
+		fatal("%s", err)
+	}
+	ignoreCertErrors := flags.ignoreCertErrors
+	enableLogs := flags.enableLogs
 
 	// Check if already running
 	if s, err := loadState(); err == nil {
@@ -352,13 +370,7 @@ func cmdStart(args []string) {
 		}
 	}
 
-	// Parse flags
-	headless := true
-	for _, arg := range args {
-		if arg == "--show" {
-			headless = false
-		}
-	}
+	headless := flags.headless
 
 	dataDir := filepath.Join(stateDir(), "chrome-data")
 	os.MkdirAll(dataDir, 0755)
